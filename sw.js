@@ -1,7 +1,7 @@
 /* Service Worker: hakt Todos direkt aus der Benachrichtigung ab – ohne die App zu öffnen. */
 importScripts('shared.js');
 
-const CACHE = 'abhaken-v2';
+const CACHE = 'abhaken-v3';
 const FILES = ['./', 'index.html', 'shared.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'badge.png'];
 
 self.addEventListener('install', (event) => {
@@ -34,23 +34,29 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('notificationclick', (event) => {
-  const id = event.notification.data && event.notification.data.id;
+  const data = event.notification.data || {};
 
-  if (event.action === 'done') {
+  if (event.action === 'done' || event.action === 'next') {
     // Abhaken im Hintergrund: kein Fenster öffnen, damit das Handy gesperrt bleiben kann.
-    event.notification.close();
     event.waitUntil((async () => {
-      const todo = await Abhaken.getTodo(id);
-      if (todo && !todo.done) {
-        todo.done = Date.now();
-        await Abhaken.putTodo(todo);
+      if (data.list) {
+        if (event.action === 'done') await Abhaken.checkCurrent();
+        else await Abhaken.moveCursor();
+      } else if (event.action === 'done') {
+        event.notification.close();
+        const todo = await Abhaken.getTodo(data.id);
+        if (todo && !todo.done) {
+          todo.done = Date.now();
+          await Abhaken.putTodo(todo);
+        }
       }
+      await Abhaken.refresh(self.registration);
       Abhaken.announce();
     })());
     return;
   }
 
-  // Tipp auf die Benachrichtigung selbst: App öffnen, Todo bleibt stehen.
+  // Tipp auf die Benachrichtigung selbst: App öffnen, Todos bleiben stehen.
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     if (wins.length) return wins[0].focus();
@@ -58,12 +64,9 @@ self.addEventListener('notificationclick', (event) => {
   })());
 });
 
-/* Weggewischt? Wenn „Anheften“ an ist, kommt ein offenes Todo zurück. */
+/* Weggewischt? Wenn „Anheften“ an ist, kommen offene Todos zurück. */
 self.addEventListener('notificationclose', (event) => {
-  const id = event.notification.data && event.notification.data.id;
   event.waitUntil((async () => {
-    if (!(await Abhaken.getSetting('pin'))) return;
-    const todo = await Abhaken.getTodo(id);
-    if (todo && !todo.done) await Abhaken.notify(self.registration, todo);
+    if (await Abhaken.getSetting('pin')) await Abhaken.refresh(self.registration);
   })());
 });

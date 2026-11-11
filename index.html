@@ -122,6 +122,8 @@
   /* Einstellungen und Hilfe */
   details { margin: 40px 0 0; border-top: 1px solid var(--slip-line); padding-top: 14px; }
   summary { font-weight: 650; padding: 8px 0; cursor: pointer; }
+  .mode { border: 0; padding: 0; margin: 12px 0 0; }
+  .mode legend { padding: 0; font-weight: 650; }
   .toggle { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 18px; }
   .toggle input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--note); flex: none; }
   .toggle small { display: block; color: var(--muted); font-size: 0.9rem; }
@@ -180,6 +182,21 @@
 
   <details>
     <summary>Einstellungen und Hilfe</summary>
+    <fieldset class="mode">
+      <legend>Auf dem Sperrbildschirm</legend>
+      <label class="toggle">
+        <input type="radio" name="mode" value="list">
+        <span>Eine Liste mit allen Todos
+          <small>Kästchen links, darunter „✓ Abhaken“ für das markierte Todo und „↓ Nächstes“ zum Weiterrücken.</small>
+        </span>
+      </label>
+      <label class="toggle">
+        <input type="radio" name="mode" value="single">
+        <span>Jedes Todo einzeln
+          <small>Eine Benachrichtigung pro Todo, jede mit eigenem „✓ Erledigt“.</small>
+        </span>
+      </label>
+    </fieldset>
     <label class="toggle">
       <input type="checkbox" id="pin">
       <span>Todos anheften
@@ -188,7 +205,8 @@
     </label>
     <ul class="tips">
       <li><b>Android: Inhalt auf dem Sperrbildschirm zeigen.</b> In den Android-Einstellungen unter „Benachrichtigungen“ muss für den Sperrbildschirm „Alle Inhalte anzeigen“ gewählt sein. Der Punkt heißt je nach Hersteller etwas anders.</li>
-      <li><b>Android: Schaltfläche nicht zu sehen?</b> Zieh die Benachrichtigung ein Stück nach unten oder tipp auf den kleinen Pfeil. Dann erscheint „✓ Erledigt“.</li>
+      <li><b>Android: Liste oder Schaltflächen nicht zu sehen?</b> Zieh die Benachrichtigung ein Stück nach unten oder tipp auf den kleinen Pfeil. Dann klappt sie auf.</li>
+      <li><b>Android: In der Liste abhaken.</b> Das Zeichen ◀ zeigt, welches Todo „✓ Abhaken“ erledigt. Mit „↓ Nächstes“ rückst du es weiter. Einzelne Kästchen in einer Benachrichtigung kann Android nicht antippbar machen.</li>
       <li><b>Android: Das Handy fragt trotzdem nach PIN oder Fingerabdruck?</b> Dann verlangt dein Android das für Schaltflächen in Benachrichtigungen. Eine Web-App kann das nicht abschalten.</li>
       <li><b>Android: Wie eine App nutzen.</b> Im Chrome-Menü „Zum Startbildschirm hinzufügen“ wählen.</li>
       <li><b>iPhone: Einrichten.</b> Seite in Safari öffnen, „Teilen“, dann „Zum Home-Bildschirm“. Abhaken über das neue Symbol starten und Benachrichtigungen erlauben.</li>
@@ -305,8 +323,8 @@
       el.append(
         para('lead', 'Todos auf dem Sperrbildschirm zeigen'),
         para('more', A.hasActions()
-          ? 'Jedes offene Todo erscheint als Benachrichtigung mit der Schaltfläche „✓ Erledigt“.'
-          : 'Jedes offene Todo erscheint als Benachrichtigung. Ein Tipp darauf öffnet die Liste zum Abhaken.'),
+          ? 'Deine offenen Todos erscheinen als Liste in einer Benachrichtigung und lassen sich dort abhaken.'
+          : 'Deine offenen Todos erscheinen als Liste in einer Benachrichtigung. Ein Tipp darauf öffnet die App zum Abhaken.'),
         button('Benachrichtigungen erlauben', 'primary', async () => {
           await Notification.requestPermission();
           renderStatus();
@@ -319,10 +337,8 @@
   /* ---------- Aktionen ---------- */
 
   async function add(text) {
-    const todo = { id: newId(), text, created: Date.now(), done: null };
-    await A.putTodo(todo);
-    await render();
-    if (granted()) await A.notify(reg, todo);
+    await A.putTodo({ id: newId(), text, created: Date.now(), done: null });
+    await changed();
   }
 
   async function setDone(id, isDone) {
@@ -330,17 +346,12 @@
     if (!todo) return;
     todo.done = isDone ? Date.now() : null;
     await A.putTodo(todo);
-    await render();
-    if (granted()) {
-      if (isDone) await A.closeNotification(reg, id);
-      else await A.notify(reg, todo);
-    }
+    await changed();
   }
 
   async function remove(id) {
     await A.deleteTodo(id);
-    await render();
-    if (granted()) await A.closeNotification(reg, id);
+    await changed();
   }
 
   async function clearDone() {
@@ -349,17 +360,14 @@
     await render();
   }
 
-  /* Gleicht Benachrichtigungen mit der Liste ab: fehlende zeigen, überzählige schließen. */
+  /* Nach jeder Änderung: Liste neu zeichnen und Sperrbildschirm angleichen. */
+  async function changed() {
+    await render();
+    await syncNotifications();
+  }
+
   async function syncNotifications() {
-    if (!granted()) return;
-    const todos = await A.allTodos();
-    const open = new Map(todos.filter((t) => !t.done).map((t) => [A.tag(t.id), t]));
-    const shown = new Set();
-    for (const n of await reg.getNotifications()) {
-      if (!n.tag || !n.tag.startsWith('todo-')) continue;
-      if (open.has(n.tag)) shown.add(n.tag); else n.close();
-    }
-    for (const [tag, todo] of open) if (!shown.has(tag)) await A.notify(reg, todo);
+    if (granted()) await A.refresh(reg);
   }
 
   /* ---------- Start ---------- */
@@ -374,6 +382,10 @@
   });
   $('clearDone').addEventListener('click', clearDone);
   $('pin').addEventListener('change', (e) => A.setSetting('pin', e.target.checked));
+  document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener('change', async () => {
+    await A.setSetting('mode', r.value);
+    await syncNotifications();
+  }));
 
   try {
     new BroadcastChannel('abhaken').addEventListener('message', render);
@@ -385,6 +397,7 @@
   (async function start() {
     await render();
     $('pin').checked = !!(await A.getSetting('pin'));
+    document.querySelector('input[name="mode"][value="' + (await A.getMode()) + '"]').checked = true;
     if (supported) {
       try {
         await navigator.serviceWorker.register('sw.js');
