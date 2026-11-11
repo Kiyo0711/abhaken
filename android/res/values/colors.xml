@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dusk">#1F2437</color>
+    <color name="slip">#2C3352</color>
+    <color name="slip_line">#3D4670</color>
+    <color name="ink">#F2F3F8</color>
+    <color name="muted">#A9B0CB</color>
+    <color name="note">#F4CF5B</color>
+    <color name="note_ink">#2A2408</color>
+    <color name="box">#8C93AD</color>
+</resources>

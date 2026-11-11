@@ -1,0 +1,32 @@
+name: Android-App bauen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: APK bauen
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: bash android/build.sh
+
+      - name: Als Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-${{ github.run_number }}" android/build/abhaken.apk \
+            --title "Abhaken für Android 1.${{ github.run_number }}" \
+            --notes "Installationsdatei für Android. Auf dem Handy herunterladen und öffnen." \
+            --latest
