@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Abhaken</title>
+<meta name="theme-color" content="#1F2437">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Abhaken">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dusk: #1F2437;
+    --slip: #2C3352;
+    --slip-line: #3D4670;
+    --ink: #F2F3F8;
+    --muted: #A9B0CB;
+    --note: #F4CF5B;
+    --note-ink: #2A2408;
+    --warn: #F29C8E;
+    --radius-slip: 22px;
+    --pad: 20px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--dusk);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.45;
+    min-height: 100dvh;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--note); outline-offset: 2px; }
+
+  .page {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: calc(28px + env(safe-area-inset-top)) var(--pad) calc(120px + env(safe-area-inset-bottom));
+  }
+
+  h1 {
+    font-size: clamp(2.6rem, 13vw, 3.6rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 0.95;
+    margin: 0;
+  }
+  .count { color: var(--muted); margin: 8px 0 0; }
+
+  /* Zustand der Sperrbildschirm-Anbindung */
+  .status { margin: 22px 0 0; }
+  .status[hidden] { display: none; }
+  .status.quiet { color: var(--muted); font-size: 0.94rem; display: flex; gap: 8px; align-items: center; }
+  .status.quiet svg { flex: none; }
+  .status.ask, .status.problem {
+    border: 1.5px dashed var(--slip-line);
+    border-radius: var(--radius-slip);
+    padding: 18px;
+  }
+  .status.problem { border-color: var(--warn); }
+  .status p { margin: 0; }
+  .status .lead { font-weight: 650; font-size: 1.08rem; }
+  .status .more { color: var(--muted); margin-top: 4px; font-size: 0.94rem; }
+  .primary {
+    margin-top: 14px;
+    background: var(--note);
+    color: var(--note-ink);
+    border: 0;
+    border-radius: 999px;
+    padding: 12px 20px;
+    font-weight: 700;
+  }
+
+  /* Offene Todos: sehen aus wie die Benachrichtigung auf dem Sperrbildschirm */
+  .open { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 10px; }
+  .slip {
+    background: var(--slip);
+    border-radius: var(--radius-slip);
+    padding: 16px 18px 8px;
+  }
+  .slip .text { margin: 0; font-size: 1.12rem; font-weight: 550; overflow-wrap: anywhere; }
+  .slip .actions { display: flex; justify-content: space-between; margin: 6px -10px 0; }
+  .act {
+    background: none;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px;
+    min-height: 44px;
+    font-weight: 700;
+    color: var(--note);
+  }
+  .act.soft { color: var(--muted); font-weight: 500; }
+  .act:active { background: rgba(255, 255, 255, 0.08); }
+
+  .empty { margin: 26px 0 0; color: var(--muted); }
+  .empty[hidden] { display: none; }
+
+  /* Erledigt */
+  .done-head { display: flex; justify-content: space-between; align-items: baseline; margin: 36px 0 0; }
+  .done-head[hidden] { display: none; }
+  h2 { font-size: 1rem; font-weight: 650; margin: 0; color: var(--muted); }
+  .done { list-style: none; margin: 6px 0 0; padding: 0; }
+  .done li {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    border-top: 1px solid var(--slip-line);
+    padding: 4px 0;
+  }
+  .done .text { color: var(--muted); text-decoration: line-through; overflow-wrap: anywhere; }
+  .done .act { margin-right: -10px; flex: none; }
+
+  /* Einstellungen und Hilfe */
+  details { margin: 40px 0 0; border-top: 1px solid var(--slip-line); padding-top: 14px; }
+  summary { font-weight: 650; padding: 8px 0; cursor: pointer; }
+  .toggle { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 18px; }
+  .toggle input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--note); flex: none; }
+  .toggle small { display: block; color: var(--muted); font-size: 0.9rem; }
+  .tips { margin: 0; padding: 0 0 0 1.1em; color: var(--muted); font-size: 0.94rem; max-width: 62ch; }
+  .tips li { margin: 0 0 10px; }
+  .tips b { color: var(--ink); font-weight: 650; }
+
+  /* Eingabe unten, in Daumenreichweite */
+  .composer {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(to top, var(--dusk) 72%, transparent);
+    padding: 26px var(--pad) calc(16px + env(safe-area-inset-bottom));
+  }
+  .composer form {
+    max-width: calc(34rem - 2 * var(--pad));
+    margin: 0 auto;
+    display: flex; gap: 8px;
+    background: var(--ink);
+    border-radius: 999px;
+    padding: 6px;
+  }
+  .composer input {
+    flex: 1; min-width: 0;
+    border: 0; background: none;
+    color: #1B1F30;
+    padding: 10px 14px;
+    font-size: 1.05rem;
+    border-radius: 999px;
+  }
+  .composer input::placeholder { color: #6B7290; }
+  .composer input:focus-visible { outline: none; }
+  .composer form:focus-within { outline: 3px solid var(--note); outline-offset: 2px; }
+  .composer button {
+    border: 0; border-radius: 999px;
+    background: var(--dusk); color: var(--ink);
+    padding: 10px 18px; font-weight: 700;
+  }
+  .composer button:focus-visible { outline-color: var(--dusk); }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Abhaken</h1>
+  <p class="count" id="count" aria-live="polite"></p>
+
+  <section class="status" id="status" hidden></section>
+
+  <ul class="open" id="open" aria-label="Offene Todos"></ul>
+  <p class="empty" id="empty" hidden>Nichts offen. Trag unten dein erstes Todo ein.</p>
+
+  <div class="done-head" id="doneHead" hidden>
+    <h2>Erledigt</h2>
+    <button class="act soft" id="clearDone" type="button">Erledigte entfernen</button>
+  </div>
+  <ul class="done" id="done" aria-label="Erledigte Todos"></ul>
+
+  <details>
+    <summary>Einstellungen und Hilfe</summary>
+    <label class="toggle">
+      <input type="checkbox" id="pin">
+      <span>Todos anheften
+        <small>Ein weggewischtes Todo kommt zurück, bis es abgehakt oder gelöscht ist.</small>
+      </span>
+    </label>
+    <ul class="tips">
+      <li><b>Android: Inhalt auf dem Sperrbildschirm zeigen.</b> In den Android-Einstellungen unter „Benachrichtigungen“ muss für den Sperrbildschirm „Alle Inhalte anzeigen“ gewählt sein. Der Punkt heißt je nach Hersteller etwas anders.</li>
+      <li><b>Android: Schaltfläche nicht zu sehen?</b> Zieh die Benachrichtigung ein Stück nach unten oder tipp auf den kleinen Pfeil. Dann erscheint „✓ Erledigt“.</li>
+      <li><b>Android: Das Handy fragt trotzdem nach PIN oder Fingerabdruck?</b> Dann verlangt dein Android das für Schaltflächen in Benachrichtigungen. Eine Web-App kann das nicht abschalten.</li>
+      <li><b>Android: Wie eine App nutzen.</b> Im Chrome-Menü „Zum Startbildschirm hinzufügen“ wählen.</li>
+      <li><b>iPhone: Einrichten.</b> Seite in Safari öffnen, „Teilen“, dann „Zum Home-Bildschirm“. Abhaken über das neue Symbol starten und Benachrichtigungen erlauben.</li>
+      <li><b>iPhone: Abhaken.</b> Apple erlaubt Web-Apps keine Schaltflächen in Benachrichtigungen. Die Todos stehen auf dem Sperrbildschirm, zum Abhaken tippst du eins an und die Liste öffnet sich.</li>
+      <li><b>Todo fehlt auf dem Sperrbildschirm?</b> Öffne Abhaken kurz, dann werden alle offenen Todos wieder angezeigt.</li>
+    </ul>
+  </details>
+</main>
+
+<div class="composer">
+  <form id="form" autocomplete="off">
+    <input id="input" type="text" placeholder="Neues Todo" aria-label="Neues Todo" maxlength="200" enterkeyhint="done">
+    <button type="submit">Hinzufügen</button>
+  </form>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  const A = self.Abhaken;
+  const $ = (id) => document.getElementById(id);
+  const supported = 'serviceWorker' in navigator && 'Notification' in window && window.isSecureContext;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let reg = null;
+
+  const granted = () => !!reg && Notification.permission === 'granted';
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+  /* ---------- Anzeige ---------- */
+
+  function button(label, cls, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  async function render() {
+    const todos = await A.allTodos();
+    const open = todos.filter((t) => !t.done).sort((a, b) => b.created - a.created);
+    const done = todos.filter((t) => t.done).sort((a, b) => b.done - a.done);
+
+    $('count').textContent = open.length === 0 && done.length === 0 ? ''
+      : open.length + ' offen' + (done.length ? ', ' + done.length + ' erledigt' : '');
+
+    const openEl = $('open');
+    openEl.replaceChildren(...open.map((t) => {
+      const li = document.createElement('li');
+      li.className = 'slip';
+      const p = document.createElement('p');
+      p.className = 'text';
+      p.textContent = t.text;
+      const row = document.createElement('div');
+      row.className = 'actions';
+      row.append(
+        button('✓ Erledigt', 'act', () => setDone(t.id, true)),
+        button('Löschen', 'act soft', () => remove(t.id))
+      );
+      li.append(p, row);
+      return li;
+    }));
+    $('empty').hidden = open.length > 0;
+
+    $('doneHead').hidden = done.length === 0;
+    $('done').replaceChildren(...done.map((t) => {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      span.className = 'text';
+      span.textContent = t.text;
+      li.append(span, button('Zurückholen', 'act soft', () => setDone(t.id, false)));
+      return li;
+    }));
+  }
+
+  function renderStatus() {
+    const el = $('status');
+    el.hidden = false;
+    el.replaceChildren();
+    const para = (cls, text) => { const p = document.createElement('p'); p.className = cls; p.textContent = text; return p; };
+
+    if (isIOS && !isInstalled) {
+      el.className = 'status ask';
+      el.append(
+        para('lead', 'Erst zum Home-Bildschirm hinzufügen'),
+        para('more', 'Auf dem iPhone gehen Benachrichtigungen nur für Web-Apps auf dem Home-Bildschirm. Öffne diese Seite in Safari, tipp auf „Teilen“ und dann auf „Zum Home-Bildschirm“. Starte Abhaken danach über das neue Symbol.')
+      );
+    } else if (!supported || !reg) {
+      el.className = 'status problem';
+      el.append(
+        para('lead', 'Sperrbildschirm hier nicht möglich'),
+        para('more', location.protocol === 'https:' || location.hostname === 'localhost'
+          ? 'Dieser Browser zeigt keine Benachrichtigungen für Web-Apps. Auf Android klappt es in Chrome, auf dem iPhone über Safari und den Home-Bildschirm.'
+          : 'Die Seite muss über eine https-Adresse geöffnet werden, nicht als Datei. Deine Todos kannst du trotzdem hier pflegen.')
+      );
+    } else if (Notification.permission === 'granted') {
+      el.className = 'status quiet';
+      el.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5"/></svg>';
+      el.append(para('', A.hasActions()
+        ? 'Offene Todos stehen auf deinem Sperrbildschirm.'
+        : 'Offene Todos stehen auf deinem Sperrbildschirm. Zum Abhaken antippen, die Liste öffnet sich.'));
+    } else if (Notification.permission === 'denied') {
+      el.className = 'status problem';
+      el.append(
+        para('lead', 'Benachrichtigungen sind blockiert'),
+        para('more', isIOS
+          ? 'Erlaube sie in den iPhone-Einstellungen unter „Mitteilungen“ beim Eintrag „Abhaken“ und öffne die App danach neu.'
+          : 'Tipp in der Adressleiste auf das Symbol links neben der Adresse, dann auf „Berechtigungen“, und erlaube Benachrichtigungen. Danach die Seite neu laden.')
+      );
+    } else {
+      el.className = 'status ask';
+      el.append(
+        para('lead', 'Todos auf dem Sperrbildschirm zeigen'),
+        para('more', A.hasActions()
+          ? 'Jedes offene Todo erscheint als Benachrichtigung mit der Schaltfläche „✓ Erledigt“.'
+          : 'Jedes offene Todo erscheint als Benachrichtigung. Ein Tipp darauf öffnet die Liste zum Abhaken.'),
+        button('Benachrichtigungen erlauben', 'primary', async () => {
+          await Notification.requestPermission();
+          renderStatus();
+          await syncNotifications();
+        })
+      );
+    }
+  }
+
+  /* ---------- Aktionen ---------- */
+
+  async function add(text) {
+    const todo = { id: newId(), text, created: Date.now(), done: null };
+    await A.putTodo(todo);
+    await render();
+    if (granted()) await A.notify(reg, todo);
+  }
+
+  async function setDone(id, isDone) {
+    const todo = await A.getTodo(id);
+    if (!todo) return;
+    todo.done = isDone ? Date.now() : null;
+    await A.putTodo(todo);
+    await render();
+    if (granted()) {
+      if (isDone) await A.closeNotification(reg, id);
+      else await A.notify(reg, todo);
+    }
+  }
+
+  async function remove(id) {
+    await A.deleteTodo(id);
+    await render();
+    if (granted()) await A.closeNotification(reg, id);
+  }
+
+  async function clearDone() {
+    const todos = await A.allTodos();
+    await Promise.all(todos.filter((t) => t.done).map((t) => A.deleteTodo(t.id)));
+    await render();
+  }
+
+  /* Gleicht Benachrichtigungen mit der Liste ab: fehlende zeigen, überzählige schließen. */
+  async function syncNotifications() {
+    if (!granted()) return;
+    const todos = await A.allTodos();
+    const open = new Map(todos.filter((t) => !t.done).map((t) => [A.tag(t.id), t]));
+    const shown = new Set();
+    for (const n of await reg.getNotifications()) {
+      if (!n.tag || !n.tag.startsWith('todo-')) continue;
+      if (open.has(n.tag)) shown.add(n.tag); else n.close();
+    }
+    for (const [tag, todo] of open) if (!shown.has(tag)) await A.notify(reg, todo);
+  }
+
+  /* ---------- Start ---------- */
+
+  $('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    add(text);
+  });
+  $('clearDone').addEventListener('click', clearDone);
+  $('pin').addEventListener('change', (e) => A.setSetting('pin', e.target.checked));
+
+  try {
+    new BroadcastChannel('abhaken').addEventListener('message', render);
+  } catch (e) { /* ohne BroadcastChannel aktualisiert die Liste beim Zurückkehren */ }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { render(); syncNotifications(); }
+  });
+
+  (async function start() {
+    await render();
+    $('pin').checked = !!(await A.getSetting('pin'));
+    if (supported) {
+      try {
+        await navigator.serviceWorker.register('sw.js');
+        reg = await navigator.serviceWorker.ready;
+      } catch (err) {
+        console.error('Service Worker konnte nicht starten', err);
+      }
+    }
+    renderStatus();
+    await syncNotifications();
+  })();
+})();
+</script>
+</body>
+</html>
